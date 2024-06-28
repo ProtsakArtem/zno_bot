@@ -2,8 +2,10 @@ from aiogram import Dispatcher, types, F
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from infrastructure.database.repo import database as Database
+from infrastructure.database.repo.database import Database
 import random
+
+from tgbot.handlers.user import send_question
 
 
 class QuizStates(StatesGroup):
@@ -53,41 +55,4 @@ async def answer_callback(callback_query: types.CallbackQuery, state: FSMContext
     question_id = int(data[0])
     selected_option = data[1]
 
-    question = await db.get_question(question_id)
-    correct_option = question.correct_option
 
-    is_correct = selected_option == correct_option
-    await db.save_user_answer(user_id, question_id, selected_option, is_correct)
-
-    if is_correct:
-        response_text = "Правильно!"
-    else:
-        response_text = f"Неправильно. Правильна відповідь: {correct_option}"
-
-    await callback_query.message.answer(response_text)
-
-    user = await db.get_user_progress(user_id)
-    current_topic = user.current_topic
-    current_question_index = user.current_question_index + 1
-    await db.update_user_progress(user_id, current_topic, current_question_index)
-
-    await send_question(callback_query.message, db, current_topic, current_question_index)
-    await state.set_state(QuizStates.answering)
-
-
-async def send_question(message: types.Message, db: Database, topic_id: int, question_index: int):
-    question = await db.get_question_by_index(topic_id, question_index)
-    if not question:
-        await message.answer("Ви завершили всі питання з цієї теми!")
-        return
-
-    text = question.question_text
-    buttons = [
-        InlineKeyboardButton(text="A", callback_data=f"{question.question_id}:A"),
-        InlineKeyboardButton(text="Б", callback_data=f"{question.question_id}:B"),
-        InlineKeyboardButton(text="В", callback_data=f"{question.question_id}:C"),
-        InlineKeyboardButton(text="Г", callback_data=f"{question.question_id}:D"),
-        InlineKeyboardButton(text="Пропустити", callback_data=f"{question.question_id}:skip")
-    ]
-    keyboard = InlineKeyboardMarkup(row_width=2).add(*buttons)
-    await message.answer(text, reply_markup=keyboard)
