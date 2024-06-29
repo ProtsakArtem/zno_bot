@@ -1,6 +1,7 @@
 from typing import Optional
 
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.orm import Mapped
 
 from infrastructure.database.models import User
 from infrastructure.database.repo.base import BaseRepo
@@ -13,6 +14,7 @@ class UserRepo(BaseRepo):
         full_name: str,
         language: str,
         username: Optional[str] = None,
+
     ):
         """
         Creates or updates a new user in the database and returns the user object.
@@ -44,3 +46,17 @@ class UserRepo(BaseRepo):
 
         await self.session.commit()
         return result.scalar_one()
+
+    async def get_user_progress(self, user_id):
+        async with self.db.get_session() as session:
+            result = await session.execute(select(User).where(User.user_id == user_id))
+            return result.scalars().first()
+
+    async def update_user_progress(self, user_id, current_topic, current_question_index):
+        async with self.db.get_session() as session:
+            result = await session.execute(select(User).where(User.user_id == user_id))
+            user = result.scalars().first()
+            if user:
+                user.current_topic = current_topic
+                user.current_question_index = current_question_index
+            await session.commit()

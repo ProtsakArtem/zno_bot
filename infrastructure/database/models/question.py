@@ -6,7 +6,7 @@ class Question(Base, TableNameMixin):
     question_id: Mapped[int] = mapped_column(BIGINT, primary_key=True, autoincrement=True)
     topic_id: Mapped[int] = mapped_column(ForeignKey('topics.topic_id'))
     with_pictures: Mapped[bool] = mapped_column(Boolean)
-    #1 - deafult question, 2-відповідність, послідовність
+    #1 - deafult question, 2-відпов
     question_type: Mapped[int] = mapped_column(Integer, default=1)
     question_text: Mapped[str] = mapped_column(String)
     option_a: Mapped[str] = mapped_column(String)

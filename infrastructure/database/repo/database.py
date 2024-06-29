@@ -1,6 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.future import select
+
+from infrastructure.database.models import Base
 from tgbot.config import load_config
 from infrastructure.database.models.users import User
 from infrastructure.database.models.topic import Topic

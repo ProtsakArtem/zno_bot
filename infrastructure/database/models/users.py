@@ -4,19 +4,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .base import Base, TimestampMixin, TableNameMixin
 
 class User(Base, TimestampMixin, TableNameMixin):
-    """
-    This class represents a User in the application.
-
-    Attributes:
-        user_id (Mapped[int]): The unique identifier of the user.
-        username (Mapped[Optional[str]]): The username of the user.
-        full_name (Mapped[str]): The full name of the user.
-        active (Mapped[bool]): Indicates whether the user is active or not.
-        language (Mapped[str]): The language preference of the user.
-
-    Methods:
-        __repr__(): Returns a string representation of the User object.
-    """
     user_id: Mapped[int] = mapped_column(BIGINT, primary_key=True, autoincrement=False)
     username: Mapped[Optional[str]] = mapped_column(String(128))
     full_name: Mapped[str] = mapped_column(String(128))
