@@ -1,62 +1,89 @@
-from typing import Optional
+import asyncio
+import sqlite3
 
-from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import Mapped
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
 
-from infrastructure.database.models import User
-from infrastructure.database.repo.base import BaseRepo
+from infrastructure.database.models import Question, Base
+from infrastructure.database.repo.questions import QuestionRepo
+
+DATABASE_URL = "postgresql+asyncpg://mainsempai:oraoraora123@localhost:1488/database"  # Замініть на ваші дані
+
+engine = create_async_engine(DATABASE_URL, echo=True)
+SessionLocal = sessionmaker(
+    bind=engine,
+    class_=AsyncSession,
+    expire_on_commit=False
+)
 
 
-class UserRepo(BaseRepo):
-    async def get_or_create_user(
-        self,
-        user_id: int,
-        full_name: str,
-        language: str,
-        username: Optional[str] = None,
+async def fetch_records_from_sqlite():
+    # Підключення до бази даних SQLite
+    conn = sqlite3.connect('zno_questions.db')
+    cursor = conn.cursor()
 
-    ):
-        """
-        Creates or updates a new user in the database and returns the user object.
-        :param user_id: The user's ID.
-        :param full_name: The user's full name.
-        :param language: The user's language.
-        :param username: The user's username. It's an optional parameter.
-        :return: User object, None if there was an error while making a transaction.
-        """
+    # Витягуємо дані з таблиці
+    cursor.execute('SELECT * FROM history')
 
-        insert_stmt = (
-            insert(User)
-            .values(
-                user_id=user_id,
-                username=username,
-                full_name=full_name,
-                language=language,
-            )
-            .on_conflict_do_update(
-                index_elements=[User.user_id],
-                set_=dict(
-                    username=username,
-                    full_name=full_name,
-                ),
-            )
-            .returning(User)
-        )
-        result = await self.session.execute(insert_stmt)
+    # Підключення до PostgreSQL
+    async with SessionLocal() as session:
+        async with session.begin():
+            for row in cursor.fetchall():
+                if row[0] == '' or row[0] == None:
+                    continue
+                topic = row[0]
+                q_count = row[2]
+                q_text = row[3]
+                picture = row[-1]
+                with_picture = picture is not None and picture != 0
+                description = row[-2]
 
-        await self.session.commit()
-        return result.scalar_one()
+                a = row[-2].strip().replace(".", "").split("\n")[-1].lower()
+                if "відповідь" in a:
+                    b = a.index("відповідь")
+                else:
+                    b = a.index("відповіді")
+                ans = a[b + 11:].strip()
+                ans_2 = None
+                var_a, var_b, var_c, var_d = row[4], row[5], row[6], row[7]
+                var_e, var_f, var_g, var_h, var_i = None, None, None, None, None
+                q_type = 1 if row[8] == 0 else 2
 
-    async def get_user_progress(self, user_id):
-        async with self.db.get_session() as session:
-            result = await session.execute(select(User).where(User.user_id == user_id))
-            return result.scalars().first()
+                if q_type == 2:
+                    b4 = ans.replace(",", "").replace("–", "").replace("-", "").replace(" ", "").replace("1",
+                                                                                                         "").replace(
+                        "2", "").replace("3", "").replace("4", "").replace(" ", "")
+                    las = " ".join([f"{x + 1}-{b4[x]}" for x in range(len(b4))])
+                    ans_2 = las.rstrip()
+                    ans = None
+                    var_e, var_f, var_g, var_h, var_i = row[8], row[9], row[10], row[11], row[12]
 
-    async def update_user_progress(self, user_id, current_topic, current_question_index):
-        async with self.db.get_session() as session:
-            result = await session.execute(select(User).where(User.user_id == user_id))
-            user = result.scalars().first()
-            if user:
-                user.current_topic = current_topic
-                user.current_question_index = current_question_index
+                question = Question(
+                    question_number=q_count,
+                    topic_id=topic,
+                    with_pictures=with_picture,
+                    question_type=q_type,
+                    question_text=q_text,
+                    option_a=var_a,
+                    option_b=var_b,
+                    option_c=var_c,
+                    option_d=var_d,
+                    correct_option=ans,
+                    value_e=var_e,
+                    value_f=var_f,
+                    value_g=var_g,
+                    value_h=var_h,
+                    value_i=var_i,
+                    picture=picture,
+                    description=description,
+                    type2_answer=ans_2
+                )
+                session.add(question)
+
             await session.commit()
+
+    conn.close()
+
+
+# Виклик функції для виведення записів
+asyncio.run(fetch_records_from_sqlite())

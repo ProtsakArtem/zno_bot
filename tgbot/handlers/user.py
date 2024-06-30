@@ -1,23 +1,20 @@
-from aiogram import Dispatcher, types, F
+from aiogram import Bot, Dispatcher, types, Router, F
+from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.fsm.storage.memory import MemoryStorage
 from infrastructure.database.repo import database as Database
 import random
-
 
 class QuizStates(StatesGroup):
     answering = State()
 
+bot = Bot(token='YOUR_BOT_TOKEN')
+dp = Dispatcher(storage=MemoryStorage())
+router = Router()
 
-def register_handlers(dp: Dispatcher, db: Database):
-    dp.message.register(start_command, F.command == "start")
-    dp.message.register(reset_progress_command, F.command == "reset")
-    dp.message.register(random_question_command, F.command == "random")
-    dp.callback_query.register(answer_callback, QuizStates.answering)
-
-
-async def start_command(message: types.Message, state: FSMContext, db: Database):
+@router.message(F.command == "start")
+async def start_command(message: Message, state: FSMContext, db: Database):
     user_id = message.from_user.id
     user = await db.get_user_progress(user_id)
 
@@ -32,14 +29,15 @@ async def start_command(message: types.Message, state: FSMContext, db: Database)
     await send_question(message, db, current_topic, current_question_index)
     await state.set_state(QuizStates.answering)
 
-
-async def reset_progress_command(message: types.Message, db: Database):
+@router.message(F.command == "reset")
+async def reset_progress_command(message: Message, db: Database):
     user_id = message.from_user.id
     await db.update_user_progress(user_id, None, 0)
     await message.answer("Ваш прогрес було скинуто.")
 
 
-async def random_question_command(message: types.Message, db: Database):
+@router.message(F.command == "random")
+async def random_question_command(message: Message, db: Database):
     user_id = message.from_user.id
     topics = await db.get_all_topics()
     random_topic = random.choice(topics)
@@ -47,7 +45,14 @@ async def random_question_command(message: types.Message, db: Database):
     await send_question(message, db, random_topic.topic_id, random_question.question_id)
 
 
-async def answer_callback(callback_query: types.CallbackQuery, state: FSMContext, db: Database):
+@router.message(F.command == "get_themes")
+async def random_question_command(message: Message, db: Database, bot: Bot):
+    user_id = message.from_user.id
+    topics = await db.get_all_topics()
+    await bot.send_message(message.from_user.id, topics)
+
+@router.callback_query(QuizStates.answering)
+async def answer_callback(callback_query: CallbackQuery, state: FSMContext, db: Database):
     user_id = callback_query.from_user.id
     data = callback_query.data.split(':')
     question_id = int(data[0])
@@ -75,7 +80,9 @@ async def answer_callback(callback_query: types.CallbackQuery, state: FSMContext
     await state.set_state(QuizStates.answering)
 
 
-async def send_question(message: types.Message, db: Database, topic_id: int, question_index: int):
+
+
+async def send_question(message: Message, db: Database, topic_id: int, question_index: int):
     question = await db.get_question_by_index(topic_id, question_index)
     if not question:
         await message.answer("Ви завершили всі питання з цієї теми!")
@@ -83,11 +90,16 @@ async def send_question(message: types.Message, db: Database, topic_id: int, que
 
     text = question.question_text
     buttons = [
-        InlineKeyboardButton(text="A", callback_data=f"{question.question_id}:A"),
-        InlineKeyboardButton(text="Б", callback_data=f"{question.question_id}:B"),
-        InlineKeyboardButton(text="В", callback_data=f"{question.question_id}:C"),
-        InlineKeyboardButton(text="Г", callback_data=f"{question.question_id}:D"),
-        InlineKeyboardButton(text="Пропустити", callback_data=f"{question.question_id}:skip")
+        [InlineKeyboardButton(text="A", callback_data=f"{question.question_id}:A")],
+        [InlineKeyboardButton(text="Б", callback_data=f"{question.question_id}:B")],
+        [InlineKeyboardButton(text="В", callback_data=f"{question.question_id}:C")],
+        [InlineKeyboardButton(text="Г", callback_data=f"{question.question_id}:D")],
+        [InlineKeyboardButton(text="Пропустити", callback_data=f"{question.question_id}:skip")]
     ]
-    keyboard = InlineKeyboardMarkup(row_width=2).add(*buttons)
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[buttons])
     await message.answer(text, reply_markup=keyboard)
+
+dp.include_router(router)
+
+if __name__ == "__main__":
+    dp.run_polling(bot)
